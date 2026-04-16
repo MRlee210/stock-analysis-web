@@ -31,30 +31,45 @@ def search_stocks(query: str):
     return results[['Code', 'Name']].to_dict(orient='records')
 
 def search_us_stocks(query: str):
-    """미국 주식 종목 검색 - yfinance Search API 활용"""
+    """미국 주식 종목 검색 - Yahoo Finance Search API 직접 호출"""
+    import requests
+    
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+        'Accept': 'application/json'
+    }
+    url = f"https://query2.finance.yahoo.com/v1/finance/search?q={query}&quotesCount=15&newsCount=0"
+    
+    results = []
     try:
-        search_result = yf.Search(query, max_results=15)
-        quotes = search_result.quotes
-        results = []
-        for q in quotes:
-            symbol = q.get('symbol', '')
-            name = q.get('longname') or q.get('shortname') or symbol
-            # 미국 거래소 상장 주식만 (Equity 타입만)
-            type_str = q.get('typeDisp', '')
-            exchange = q.get('exchDisp', '')
-            if type_str == 'Equity' and symbol:
-                results.append({'Code': symbol, 'Name': name, 'Exchange': exchange})
-        return results
+        # Vercel 등에서 타임아웃 방지를 위해 빠른 응답 설정
+        res = requests.get(url, headers=headers, timeout=5)
+        if res.status_code == 200:
+            data = res.json()
+            for q in data.get('quotes', []):
+                symbol = q.get('symbol', '')
+                quote_type = q.get('quoteType', '')
+                # 미국 거래소 상장 주식(EQUITY) 및 주요 ETF만 표시
+                if quote_type in ['EQUITY', 'ETF'] and symbol:
+                    name = q.get('longname') or q.get('shortname') or symbol
+                    exchange = q.get('exchange', '')
+                    results.append({'Code': symbol, 'Name': name, 'Exchange': exchange})
+            if results:
+                return results
+    except Exception as e:
+        print("Yahoo search error:", e)
+        pass
+
+    # 위 API가 실패한 경우 Fallback: Ticker 직접 조회 시도
+    try:
+        ticker_obj = yf.Ticker(query.upper())
+        info = ticker_obj.info
+        if info.get('longName'):
+            return [{'Code': query.upper(), 'Name': info.get('longName', query.upper()), 'Exchange': info.get('exchange', '')}]
     except Exception:
-        # Fallback: ticker 직접 조회
-        try:
-            ticker_obj = yf.Ticker(query.upper())
-            info = ticker_obj.info
-            if info.get('longName'):
-                return [{'Code': query.upper(), 'Name': info.get('longName', query.upper()), 'Exchange': info.get('exchange', '')}]
-        except Exception:
-            pass
-        return []
+        pass
+        
+    return results
 
 def fetch_stock_data(ticker: str, period: str = "1y", market: str = "KR") -> pd.DataFrame:
     """주가 OHLCV 데이터 로드. market='KR' 또는 'US'"""

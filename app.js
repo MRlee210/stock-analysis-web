@@ -259,10 +259,36 @@ async function searchStocksByQuery(query, market = 'KR') {
 function renderStockList(stocks, market = 'KR') {
     const list = document.getElementById('stockList');
     list.innerHTML = '';
+    
+    // 미국 주식 직통 입력 옵션 (백엔드 검색 실패 또는 원하는 종목이 안 나올 때)
+    if (market === 'US') {
+        const query = document.getElementById('searchInput').value.trim().toUpperCase();
+        if (query.length > 0) {
+            let directLi = document.createElement('li');
+            directLi.className = 'stock-item direct-input-item';
+            directLi.style.borderBottom = '2px dashed var(--accent)';
+            directLi.style.backgroundColor = 'rgba(88, 166, 255, 0.1)';
+            directLi.innerHTML = `<span>🔎 티커 직접 입력 분석</span><span class="stock-code" style="font-weight:bold; color:var(--accent);">${query}</span>`;
+            directLi.onclick = () => {
+                document.querySelectorAll('.stock-item').forEach(i => i.classList.remove('active'));
+                directLi.classList.add('active');
+                currentTicker = query;
+                currentTickerName = query;
+                currentMarket = market;
+                document.getElementById('currentStockTitle').innerHTML = `🇺🇸 ${query} <span style="font-size:1rem;font-weight:normal;">(${query})</span> - 분석 대기 중...`;
+                document.getElementById('currentStockPrice').textContent = '';
+            };
+            list.appendChild(directLi);
+        }
+    }
+
     if (stocks.length === 0) {
-        list.innerHTML = '<li style="color:#8b949e; padding:8px; font-size:0.85rem;">검색 결과가 없습니다.</li>';
+        if (market === 'KR') {
+             list.innerHTML += '<li style="color:#8b949e; padding:8px; font-size:0.85rem;">검색 결과가 없습니다.</li>';
+        }
         return;
     }
+    
     stocks.forEach(stock => {
         let li = document.createElement('li');
         li.className = 'stock-item';
