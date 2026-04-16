@@ -18,14 +18,28 @@
             <h1 class="logo">StockAI Pro</h1>
             
             <div class="search-section">
-                <!-- Added Search Input -->
+                <!-- Market Toggle -->
+                <label>마켓 선택</label>
+                <div id="marketToggle" style="display:flex; gap:12px; margin-bottom:10px;">
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:600; color:#58a6ff;">
+                        <input type="radio" name="market" id="marketKR" value="KR" checked style="accent-color:#58a6ff;"> 🇰🇷 한국
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:600; color:#ffb240;">
+                        <input type="radio" name="market" id="marketUS" value="US" style="accent-color:#ffb240;"> 🇺🇸 미국
+                    </label>
+                </div>
+
+                <!-- Search Input -->
                 <label for="searchInput">종목명 검색</label>
                 <input type="text" id="searchInput" placeholder="회사명 검색 (예: 삼성)...">
 
-                <label for="sectorSelect" class="mt-2">업종 필터</label>
-                <select id="sectorSelect">
-                    <option value="">업종 로딩 중...</option>
-                </select>
+                <!-- KR Only: 업종 필터 -->
+                <div id="sectorSection" class="market-kr-only">
+                    <label for="sectorSelect" class="mt-2">업종 필터</label>
+                    <select id="sectorSelect">
+                        <option value="">업종 로딩 중...</option>
+                    </select>
+                </div>
                 
                 <h3 class="mt-2">관련 주식 목록</h3>
                 <ul id="stockList" class="stock-list">

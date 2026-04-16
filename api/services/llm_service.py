@@ -18,13 +18,15 @@ def _get_model_name(ai_level: str) -> str:
     }
     return mapping.get(ai_level, "gemini-3.1-pro-preview")
 
-async def get_ai_opinion_async(ticker: str, detailed_advice: str, ai_level: str = "상") -> str:
+async def get_ai_opinion_async(ticker: str, detailed_advice: str, ai_level: str = "상", market: str = "KR") -> str:
     if not GEMINI_API_KEY:
         return "⚠️ 오류: 시스템에 `GEMINI_API_KEY`가 설정되지 않아 AI 코멘트를 불러올 수 없습니다."
     
+    market_context = "미국(US) 주식" if market == "US" else "한국(KRX) 주식"
+    
     prompt = f"""
 당신은 최고의 주식 전문 트레이더 AI입니다. 
-다음은 특정 종목({ticker})에 대해 퀀트/로직 기반 알고리즘 분석기로부터 도출된 기술적 분석 요약 내용입니다:
+다음은 특정 {market_context} 종목({ticker})에 대해 퀀트/로직 기반 알고리즘 분석기로부터 도출된 기술적 분석 요약 내용입니다:
 
 ---
 {detailed_advice}

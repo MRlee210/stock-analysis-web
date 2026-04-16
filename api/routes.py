@@ -10,30 +10,38 @@ router = APIRouter()
 
 @router.get("/sectors")
 async def get_sectors():
-    """Return a list of available stock sectors"""
+    """Return a list of available stock sectors (KR only)"""
     sectors = fs.get_all_sectors()
     return {"sectors": sectors}
 
 @router.get("/stocks")
 async def get_stocks_in_sector(sector: str):
-    """Return companies and tickers for a given sector"""
+    """Return companies and tickers for a given sector (KR only)"""
     stocks = fs.get_stocks_by_sector(sector)
     return {"stocks": stocks}
 
 @router.get("/search")
-async def search_stocks(q: str):
-    """Search for companies by name"""
-    stocks = fs.search_stocks(q)
+async def search_stocks(q: str, market: str = Query("KR", description="Market: KR or US")):
+    """Search for companies by name. market=KR for Korean stocks, market=US for US stocks."""
+    if market == "US":
+        stocks = fs.search_us_stocks(q)
+    else:
+        stocks = fs.search_stocks(q)
     return {"stocks": stocks}
 
 @router.get("/analyze")
-async def analyze_stock(ticker: str, capital: float = Query(10000000, description="User capital for risk management"), ai_level: str = Query('상', description="AI Analysis Level")):
+async def analyze_stock(
+    ticker: str,
+    capital: float = Query(10000000, description="User capital for risk management"),
+    ai_level: str = Query('상', description="AI Analysis Level"),
+    market: str = Query("KR", description="Market: KR or US")
+):
     """
     Given a ticker, fetch history, calculate indicators, 
     generate buy/sell signals, and provide risk management guide.
     """
     try:
-        df = fs.fetch_stock_data(ticker, period="1y")
+        df = fs.fetch_stock_data(ticker, period="1y", market=market)
         if df.empty:
             raise HTTPException(status_code=404, detail="Ticker data not found")
         
@@ -57,9 +65,12 @@ async def analyze_stock(ticker: str, capital: float = Query(10000000, descriptio
         
         # ── Gemini AI 코멘트 추가 ──
         try:
-            ai_opinion = await get_ai_opinion_async(ticker, detailed_advice, ai_level)
+            ai_opinion = await get_ai_opinion_async(ticker, detailed_advice, ai_level, market=market)
         except Exception:
             ai_opinion = "⚠️ AI 코멘트를 불러오지 못했습니다."
+        
+        # Currency label for frontend
+        currency = "USD" if market == "US" else "KRW"
         
         # Format the response
         ohlcv = df[['Date', 'Open', 'High', 'Low', 'Close', 'Volume']].to_dict(orient="records")
@@ -92,6 +103,8 @@ async def analyze_stock(ticker: str, capital: float = Query(10000000, descriptio
         
         return {
             "ticker": ticker,
+            "market": market,
+            "currency": currency,
             "ohlcv": ohlcv,
             "indicators": indicators,
             "signals": signals,

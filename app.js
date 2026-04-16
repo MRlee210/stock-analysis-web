@@ -5,6 +5,7 @@ let allSectors = [];
 let currentStocks = [];
 let currentTicker = null;
 let currentTickerName = null;
+let currentMarket = 'KR'; // 'KR' or 'US'
 
 // Charts References
 let mainChart, mainSeries, volumeSeries;
@@ -28,6 +29,25 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('currentStockTitle').textContent = "섹터 로딩 오류: " + e.message;
     }
     
+    // Market Toggle
+    document.querySelectorAll('input[name="market"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            currentMarket = e.target.value;
+            const isKR = currentMarket === 'KR';
+            // Show/hide sector section
+            document.getElementById('sectorSection').style.display = isKR ? '' : 'none';
+            // Update search placeholder
+            document.getElementById('searchInput').placeholder = isKR
+                ? '회사명 검색 (예: 삼성)...'
+                : 'Search US stocks (e.g. Apple)...';
+            // Clear previous results
+            document.getElementById('stockList').innerHTML = '';
+            document.getElementById('searchInput').value = '';
+            currentTicker = null;
+            currentTickerName = null;
+        });
+    });
+
     document.getElementById('sectorSelect').addEventListener('change', (e) => {
         document.getElementById('searchInput').value = "";
         loadStocks(e.target.value);
@@ -36,8 +56,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('searchInput').addEventListener('input', (e) => {
         const query = e.target.value.trim();
         if(query.length > 0) {
-            document.getElementById('sectorSelect').value = "";
-            searchStocksByQuery(query);
+            if (currentMarket === 'KR') {
+                document.getElementById('sectorSelect').value = "";
+            }
+            searchStocksByQuery(query, currentMarket);
         } else {
             document.getElementById('stockList').innerHTML = '';
         }
@@ -52,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('먼저 종목을 선택해주세요.');
             return;
         }
-        analyzeStock(currentTicker, currentTickerName);
+        analyzeStock(currentTicker, currentTickerName, currentMarket);
     });
 
     // News Modal Logic
@@ -226,38 +248,47 @@ async function loadStocks(sector) {
     } catch(e) { console.error('Error loading stocks', e); }
 }
 
-async function searchStocksByQuery(query) {
+async function searchStocksByQuery(query, market = 'KR') {
     try {
-        const res = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}`);
+        const res = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}&market=${encodeURIComponent(market)}`);
         const data = await res.json();
-        renderStockList(data.stocks);
+        renderStockList(data.stocks, market);
     } catch(e) { console.error('Error searching stocks', e); }
 }
 
-function renderStockList(stocks) {
+function renderStockList(stocks, market = 'KR') {
     const list = document.getElementById('stockList');
     list.innerHTML = '';
+    if (stocks.length === 0) {
+        list.innerHTML = '<li style="color:#8b949e; padding:8px; font-size:0.85rem;">검색 결과가 없습니다.</li>';
+        return;
+    }
     stocks.forEach(stock => {
         let li = document.createElement('li');
         li.className = 'stock-item';
-        li.innerHTML = `<span>${stock.Name}</span><span class="stock-code">${stock.Code}</span>`;
+        const exchangeLabel = stock.Exchange ? `<span class="stock-exchange" style="font-size:0.7rem; color:#8b949e; margin-left:4px;">${stock.Exchange}</span>` : '';
+        li.innerHTML = `<span>${stock.Name}${exchangeLabel}</span><span class="stock-code">${stock.Code}</span>`;
         li.onclick = () => {
             document.querySelectorAll('.stock-item').forEach(i => i.classList.remove('active'));
             li.classList.add('active');
             currentTicker = stock.Code;
             currentTickerName = stock.Name;
-            document.getElementById('currentStockTitle').innerHTML = `${stock.Name} <span style="font-size:1rem;font-weight:normal;">(${stock.Code})</span> - 분석 대기 중...`;
+            currentMarket = market;
+            const marketFlag = market === 'US' ? '🇺🇸 ' : '🇰🇷 ';
+            document.getElementById('currentStockTitle').innerHTML = `${marketFlag}${stock.Name} <span style="font-size:1rem;font-weight:normal;">(${stock.Code})</span> - 분석 대기 중...`;
             document.getElementById('currentStockPrice').textContent = '';
         };
         list.appendChild(li);
     });
 }
 
-async function analyzeStock(ticker, name = null) {
+async function analyzeStock(ticker, name = null, market = 'KR') {
     currentTicker = ticker;
+    currentMarket = market;
     if (name) currentTickerName = name;
     
-    document.getElementById('currentStockTitle').textContent = `${currentTickerName || ticker} (${ticker})`;
+    const marketFlag = market === 'US' ? '🇺🇸 ' : '🇰🇷 ';
+    document.getElementById('currentStockTitle').innerHTML = `${marketFlag}${currentTickerName || ticker} <span style="font-size:1rem;font-weight:normal;">(${ticker})</span>`;
     const priceEl = document.getElementById('currentStockPrice');
     if (priceEl) priceEl.textContent = '';
     
@@ -267,7 +298,7 @@ async function analyzeStock(ticker, name = null) {
     const aiLevel = document.getElementById('aiLevelSelect').value;
     
     try {
-        const res = await fetch(`${API_BASE}/analyze?ticker=${ticker}&capital=${capital}&ai_level=${encodeURIComponent(aiLevel)}`);
+        const res = await fetch(`${API_BASE}/analyze?ticker=${ticker}&capital=${capital}&ai_level=${encodeURIComponent(aiLevel)}&market=${encodeURIComponent(market)}`);
         if (!res.ok) throw new Error('Failed to fetch data');
         const data = await res.json();
         
@@ -276,7 +307,12 @@ async function analyzeStock(ticker, name = null) {
         
         if (priceEl && data.ohlcv && data.ohlcv.length > 0) {
             const lastCandle = data.ohlcv[data.ohlcv.length - 1];
-            priceEl.textContent = lastCandle.close.toLocaleString() + '원';
+            const currency = data.currency || (market === 'US' ? 'USD' : 'KRW');
+            if (currency === 'USD') {
+                priceEl.textContent = '$' + lastCandle.close.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            } else {
+                priceEl.textContent = lastCandle.close.toLocaleString() + '원';
+            }
         }
         
     } catch (e) {
