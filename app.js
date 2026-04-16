@@ -4,6 +4,7 @@ const API_BASE = '/api';
 let allSectors = [];
 let currentStocks = [];
 let currentTicker = null;
+let currentTickerName = null;
 
 // Charts References
 let mainChart, mainSeries, volumeSeries;
@@ -43,7 +44,57 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     document.getElementById('capitalInput').addEventListener('change', () => {
-        if (currentTicker) analyzeStock(currentTicker);
+        if (currentTicker && document.querySelector('#mainChart').innerHTML !== '') analyzeStock(currentTicker, currentTickerName);
+    });
+    
+    document.getElementById('analyzeBtn').addEventListener('click', () => {
+        if (!currentTicker) {
+            alert('먼저 종목을 선택해주세요.');
+            return;
+        }
+        analyzeStock(currentTicker, currentTickerName);
+    });
+
+    // News Modal Logic
+    document.getElementById('newsBtn').addEventListener('click', () => {
+        if (!currentTicker) {
+            alert('먼저 종목을 선택해주세요.');
+            return;
+        }
+        document.getElementById('newsModal').classList.remove('hidden');
+    });
+
+    document.getElementById('closeNewsModal').addEventListener('click', () => {
+        document.getElementById('newsModal').classList.add('hidden');
+    });
+
+    document.getElementById('fetchNewsBtn').addEventListener('click', async () => {
+        if (!currentTicker) return;
+        const prompt = document.getElementById('newsPrompt').value.trim();
+        const aiLevel = document.getElementById('aiLevelSelect').value;
+        const btn = document.getElementById('fetchNewsBtn');
+        const contentDiv = document.getElementById('newsContent');
+        
+        btn.disabled = true;
+        btn.textContent = '검색 중...';
+        contentDiv.innerHTML = '<div style="text-align:center; padding: 20px;"><span style="color:#58a6ff;">데이터 수집 및 요약 중...</span></div>';
+        
+        try {
+            const res = await fetch(`${API_BASE}/news?ticker=${encodeURIComponent(currentTickerName || currentTicker)}&ai_level=${encodeURIComponent(aiLevel)}&prompt=${encodeURIComponent(prompt)}`);
+            if (!res.ok) throw new Error('Failed to fetch news');
+            const data = await res.json();
+            
+            if (typeof marked !== 'undefined') {
+                contentDiv.innerHTML = marked.parse(data.news);
+            } else {
+                contentDiv.innerText = data.news;
+            }
+        } catch (e) {
+            contentDiv.innerHTML = `<div style="color: #f85149;">오류: ${e.message}</div>`;
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '검색 실행';
+        }
     });
     
     document.getElementById('exportPdfBtn').addEventListener('click', () => {
@@ -193,24 +244,30 @@ function renderStockList(stocks) {
         li.onclick = () => {
             document.querySelectorAll('.stock-item').forEach(i => i.classList.remove('active'));
             li.classList.add('active');
-            analyzeStock(stock.Code, stock.Name);
+            currentTicker = stock.Code;
+            currentTickerName = stock.Name;
+            document.getElementById('currentStockTitle').innerHTML = `${stock.Name} <span style="font-size:1rem;font-weight:normal;">(${stock.Code})</span> - 분석 대기 중...`;
+            document.getElementById('currentStockPrice').textContent = '';
         };
         list.appendChild(li);
     });
 }
 
-async function analyzeStock(ticker, name = "선택된 종목") {
+async function analyzeStock(ticker, name = null) {
     currentTicker = ticker;
-    document.getElementById('currentStockTitle').textContent = `${name} (${ticker})`;
+    if (name) currentTickerName = name;
+    
+    document.getElementById('currentStockTitle').textContent = `${currentTickerName || ticker} (${ticker})`;
     const priceEl = document.getElementById('currentStockPrice');
     if (priceEl) priceEl.textContent = '';
     
     document.getElementById('loadingIndicator').classList.remove('hidden');
     
     const capital = document.getElementById('capitalInput').value;
+    const aiLevel = document.getElementById('aiLevelSelect').value;
     
     try {
-        const res = await fetch(`${API_BASE}/analyze?ticker=${ticker}&capital=${capital}`);
+        const res = await fetch(`${API_BASE}/analyze?ticker=${ticker}&capital=${capital}&ai_level=${encodeURIComponent(aiLevel)}`);
         if (!res.ok) throw new Error('Failed to fetch data');
         const data = await res.json();
         

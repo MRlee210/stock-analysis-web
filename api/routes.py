@@ -4,7 +4,7 @@ import api.services.finance_service as fs
 import api.services.technical_analysis as ta
 import api.services.strategy as strat
 import api.services.risk_management as rm
-from api.services.llm_service import get_ai_opinion_async
+from api.services.llm_service import get_ai_opinion_async, get_news_summary_async
 
 router = APIRouter()
 
@@ -27,7 +27,7 @@ async def search_stocks(q: str):
     return {"stocks": stocks}
 
 @router.get("/analyze")
-async def analyze_stock(ticker: str, capital: float = Query(10000000, description="User capital for risk management")):
+async def analyze_stock(ticker: str, capital: float = Query(10000000, description="User capital for risk management"), ai_level: str = Query('상', description="AI Analysis Level")):
     """
     Given a ticker, fetch history, calculate indicators, 
     generate buy/sell signals, and provide risk management guide.
@@ -57,7 +57,7 @@ async def analyze_stock(ticker: str, capital: float = Query(10000000, descriptio
         
         # ── Gemini AI 코멘트 추가 ──
         try:
-            ai_opinion = await get_ai_opinion_async(ticker, detailed_advice)
+            ai_opinion = await get_ai_opinion_async(ticker, detailed_advice, ai_level)
         except Exception:
             ai_opinion = "⚠️ AI 코멘트를 불러오지 못했습니다."
         
@@ -104,5 +104,18 @@ async def analyze_stock(ticker: str, capital: float = Query(10000000, descriptio
             "support_resistance": sr_lines,
             "risk_management": risk_guide
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/news")
+async def get_news(ticker: str, ai_level: str = Query('상', description="AI Analysis Level"), prompt: str = Query('', description="User Requirements")):
+    """
+    Search for recent news and return a summarized markdown.
+    """
+    try:
+        if not ticker:
+            raise HTTPException(status_code=400, detail="Ticker is required")
+        news_summary = await get_news_summary_async(ticker, ai_level, prompt)
+        return {"news": news_summary}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
