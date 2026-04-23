@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
+import pandas as pd
 import api.services.finance_service as fs
 import api.services.technical_analysis as ta
 import api.services.strategy as strat
@@ -63,9 +64,28 @@ async def analyze_stock(
         # Fibonacci levels
         fib_levels = ta.calculate_fibonacci_levels(df)
         
-        # ── Gemini AI 코멘트 추가 ──
+        # ── Gemini AI 코멘트 추가 (순수 수치 데이터 전달) ──
         try:
-            ai_opinion = await get_ai_opinion_async(ticker, detailed_advice, ai_level, market=market)
+            import json
+            recent_df = df.tail(15)
+            raw_data_for_llm = []
+            for _, r in recent_df.iterrows():
+                raw_data_for_llm.append({
+                    "Date": r.get('Date'),
+                    "Close": round(r.get('Close', 0), 2) if pd.notna(r.get('Close')) else None,
+                    "Vol": r.get('Volume'),
+                    "MA5": round(r.get('SMA_5', 0), 2) if pd.notna(r.get('SMA_5')) else None,
+                    "MA20": round(r.get('SMA_20', 0), 2) if pd.notna(r.get('SMA_20')) else None,
+                    "MA60": round(r.get('SMA_60', 0), 2) if pd.notna(r.get('SMA_60')) else None,
+                    "MA120": round(r.get('SMA_120', 0), 2) if pd.notna(r.get('SMA_120')) else None,
+                    "RSI": round(r.get('RSI_14', 0), 1) if pd.notna(r.get('RSI_14')) else None,
+                    "MACD": round(r.get('MACD_12_26_9', 0), 2) if pd.notna(r.get('MACD_12_26_9')) else None,
+                    "BBL": round(r.get('BBL_20_2.0', 0), 2) if pd.notna(r.get('BBL_20_2.0')) else None,
+                    "BBU": round(r.get('BBU_20_2.0', 0), 2) if pd.notna(r.get('BBU_20_2.0')) else None,
+                })
+            raw_data_str = json.dumps(raw_data_for_llm, ensure_ascii=False)
+            
+            ai_opinion = await get_ai_opinion_async(ticker, raw_data_str, ai_level, market=market)
         except Exception:
             ai_opinion = "⚠️ AI 코멘트를 불러오지 못했습니다."
         
