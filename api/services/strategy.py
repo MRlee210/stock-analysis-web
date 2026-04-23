@@ -339,6 +339,7 @@ def generate_detailed_advice(df: pd.DataFrame, current_status: str, market: dict
     
     last = df.iloc[-1]
     phase = market['phase']
+    close = last.get('Close')
     
     # ── 시장 국면 ──
     phase_emoji = {"상승": "🟢", "횡보": "🟡", "하락": "🔴"}.get(phase, "⚪")
@@ -348,15 +349,24 @@ def generate_detailed_advice(df: pd.DataFrame, current_status: str, market: dict
     sma5 = last.get('SMA_5')
     sma20 = last.get('SMA_20')
     sma60 = last.get('SMA_60')
+    sma120 = last.get('SMA_120')
+    
+    ma_vals = []
+    for k, v in [("종가", close), ("MA5", sma5), ("MA20", sma20), ("MA60", sma60), ("MA120", sma120)]:
+        if _valid(v):
+            ma_vals.append(f"{k}: {v:.2f}")
+    ma_vals_str = " / ".join(ma_vals)
+
+    ma_text = f"현재 값 [{ma_vals_str}]\n  "
     
     if _valid(sma5, sma20, sma60) and sma5 > sma20 > sma60:
-        ma_text = "이동평균선이 **정배열(5>20>60)** 상태로 상승 추세의 뼈대가 유지되고 있습니다."
+        ma_text += "이동평균선이 **정배열(5>20>60)** 상태로 상승 추세의 뼈대가 유지되고 있습니다."
     elif _valid(sma5, sma20, sma60) and sma5 < sma20 < sma60:
-        ma_text = "이동평균선이 **역배열(5<20<60)** 상태로 하락 추세가 명확합니다."
+        ma_text += "이동평균선이 **역배열(5<20<60)** 상태로 하락 추세가 명확합니다."
     elif _valid(sma5, sma20) and sma5 > sma20:
-        ma_text = "단기선이 중기선 위에 있어 약한 상승 흐름이지만, 장기 추세 확인이 필요합니다."
+        ma_text += "단기선이 중기선 위에 있어 약한 상승 흐름이지만, 장기 추세 확인이 필요합니다."
     else:
-        ma_text = "단기선이 중기선 아래에 있어 단기적으로 약세입니다."
+        ma_text += "단기선이 중기선 아래에 있어 단기적으로 약세입니다."
     
     # ── RSI ──
     rsi = last.get('RSI_14')
@@ -392,15 +402,13 @@ def generate_detailed_advice(df: pd.DataFrame, current_status: str, market: dict
     # ── 볼린저 밴드 ──
     bbl = last.get('BBL_20_2.0')
     bbu = last.get('BBU_20_2.0')
-    close = last.get('Close')
     if _valid(bbl, bbu, close):
+        bb_pos = (close - bbl) / (bbu - bbl) * 100 if (bbu - bbl) > 0 else 50
+        bb_text = f"볼린저밴드(상단: {bbu:.2f}, 하단: {bbl:.2f}) 내 위치: 하단 대비 {bb_pos:.0f}% 지점. "
         if close >= bbu:
-            bb_text = "주가가 볼린저밴드 **상단(저항)**에 위치. 차익 실현 매물 출회 가능성."
+            bb_text += "주가가 볼린저밴드 **상단(저항)**에 위치. 차익 실현 매물 출회 가능성."
         elif close <= bbl:
-            bb_text = "주가가 볼린저밴드 **하단(지지)**에 위치. 기술적 반등 가능성."
-        else:
-            bb_pos = (close - bbl) / (bbu - bbl) * 100 if (bbu - bbl) > 0 else 50
-            bb_text = f"볼린저밴드 내 위치: 하단 대비 {bb_pos:.0f}% 지점."
+            bb_text += "주가가 볼린저밴드 **하단(지지)**에 위치. 기술적 반등 가능성."
     else:
         bb_text = ""
     
@@ -410,14 +418,26 @@ def generate_detailed_advice(df: pd.DataFrame, current_status: str, market: dict
     if _valid(span_a, span_b, close):
         cloud_top = max(span_a, span_b)
         cloud_bottom = min(span_a, span_b)
+        ich_text = f"일목구름대(선행A: {span_a:.2f}, 선행B: {span_b:.2f}, {'양운' if span_a >= span_b else '음운'}): "
         if close > cloud_top:
-            ich_text = "주가가 일목 구름대 **위**에 위치 — 상승 신호."
+            ich_text += "주가가 일목 구름대 **위**에 위치 — 상승 신호."
         elif close < cloud_bottom:
-            ich_text = "주가가 일목 구름대 **아래**에 위치 — 약세 구간."
+            ich_text += "주가가 일목 구름대 **아래**에 위치 — 약세 구간."
         else:
-            ich_text = "주가가 일목 구름대 **내부**에 위치 — 방향성 대기."
+            ich_text += "주가가 일목 구름대 **내부**에 위치 — 방향성 대기."
     else:
         ich_text = ""
+
+    # ── MACD ──
+    macd = last.get('MACD_12_26_9')
+    macds = last.get('MACDs_12_26_9')
+    macd_text = ""
+    if _valid(macd, macds):
+        macd_text = f"MACD: {macd:.2f}, 시그널: {macds:.2f} — "
+        if macd > macds:
+            macd_text += "MACD가 시그널선 위에 있음 (상승 우위)."
+        else:
+            macd_text += "MACD가 시그널선 아래에 있음 (하락 우위)."
     
     # ── 최근 신호 종합 점수 ──
     recent_signals = signals[-5:] if signals else []
@@ -451,6 +471,8 @@ def generate_detailed_advice(df: pd.DataFrame, current_status: str, market: dict
     
     if stoch_text:
         sections.append(f"• {stoch_text}")
+    if macd_text:
+        sections.append(f"• {macd_text}")
     if div_text:
         sections.append(f"• {div_text}")
     if pattern_text:
