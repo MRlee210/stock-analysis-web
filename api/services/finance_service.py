@@ -74,7 +74,7 @@ def search_us_stocks(query: str):
 def fetch_stock_data(ticker: str, period: str = "1y", market: str = "KR") -> pd.DataFrame:
     """주가 OHLCV 데이터 로드. market='KR' 또는 'US'"""
     ticker_clean = str(ticker).strip()
-    start_date = pd.Timestamp.today() - pd.DateOffset(years=2)  # 2 years for 120MA and Ichimoku
+    start_date = pd.Timestamp.today() - pd.DateOffset(years=5)  # 5 years for MACD EMA accuracy
 
     if market == "US":
         # 미국 주식: yfinance로 로드

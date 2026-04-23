@@ -13,9 +13,11 @@ def calculate_ema(series, window):
 
 def calculate_rsi(series, window=14):
     delta = series.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
-    rs = gain / loss
+    gain = delta.where(delta > 0, 0.0)
+    loss = -delta.where(delta < 0, 0.0)
+    ema_gain = gain.ewm(alpha=1/window, adjust=False).mean()
+    ema_loss = loss.ewm(alpha=1/window, adjust=False).mean()
+    rs = ema_gain / ema_loss
     return 100 - (100 / (1 + rs))
 
 def calculate_macd(series, fast=12, slow=26, signal=9):
