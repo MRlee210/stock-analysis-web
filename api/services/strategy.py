@@ -461,36 +461,66 @@ def generate_detailed_advice(df: pd.DataFrame, current_status: str, market: dict
     
     # ── 조합 ──
     sections = [
-        f"🎯 **현재 AI 추천 포지션:** {action} (종합 점수: {total_score:+.1f})",
+        "### 📖 용어 가이드 (시스템 기초)",
+        "- **종합 점수**: 최근 30일 내 발생한 주요 매매 시그널 점수(최근 5개)를 합산한 값입니다. (양수=매수 우위, 음수=매도 우위)",
+        "- **1.5% 룰 & ATR 손절**: 1회 매매 시 총 자본의 1.5%까지만 리스크를 부담하도록 수량을 제한하며, 주가 하루 평균 변동폭(ATR)의 2배 하락 시 기계적으로 손절하는 자금 관리 기법입니다.",
         "",
-        f"📊 **종합 근거 분석**",
-        f"• {phase_text}",
-        f"• {ma_text}",
-        f"• {rsi_text}",
+        "---",
+        "",
+        f"### 🎯 시스템 추천 포지션: **{action}** (종합 점수: {total_score:+.1f})",
+        "",
+        f"> 💡 **AI의 조언 요약:** {action_detail}",
+        "",
+        "---",
+        "",
+        "### 📊 종합 근거 분석",
+        "",
+        "#### 1. 시장 국면 및 추세",
+        f"- {phase_text}",
+        "",
+        "#### 2. 가격 및 이동평균선",
+        f"- {ma_text}",
+        "",
+        "#### 3. 모멘텀 및 과열/침체 (RSI, 스토캐스틱)",
+        f"- {rsi_text}",
     ]
     
     if stoch_text:
-        sections.append(f"• {stoch_text}")
-    if macd_text:
-        sections.append(f"• {macd_text}")
-    if div_text:
-        sections.append(f"• {div_text}")
-    if pattern_text:
-        sections.append(f"• {pattern_text}")
-    if bb_text:
-        sections.append(f"• {bb_text}")
-    if ich_text:
-        sections.append(f"• {ich_text}")
+        sections.append(f"- {stoch_text}")
     
     sections.append("")
-    sections.append(f"💡 **AI의 조언 요약:**")
-    sections.append(action_detail)
+    sections.append("#### 4. 보조 지표 (MACD, 볼린저밴드, 일목균형표)")
+    
+    if macd_text:
+        sections.append(f"- {macd_text}")
+    if bb_text:
+        sections.append(f"- {bb_text}")
+    if ich_text:
+        sections.append(f"- {ich_text}")
+        
+    sections.append("")
+    sections.append("#### 5. 캔들 및 패턴")
+    if pattern_text:
+        sections.append(f"- {pattern_text}")
+    if div_text:
+        sections.append(f"- {div_text}")
     
     if recent_signals:
         sections.append("")
-        sections.append("📋 **최근 주요 신호:**")
+        sections.append("---")
+        sections.append("")
+        sections.append("### 📋 최근 주요 신호")
         for s in recent_signals[-3:]:
             emoji = "🟢" if s['type'] == '매수' else "🔴"
-            sections.append(f"• {emoji} [{s['time']}] {s['strength']} {s['type']} (점수 {s['score']:+.1f}) — {s['reason'][:80]}")
+            sections.append(f"- {emoji} **[{s['time']}]** {s['strength']} {s['type']} (점수 {s['score']:+.1f}) : {s['reason'][:80]}")
+            
+    sections.append("")
+    sections.append("---")
+    sections.append("")
+    sections.append("### 📖 용어 가이드 (보조 지표)")
+    sections.append("- **ADX (추세 강도)**: 25 이상이면 현재 방향(상승/하락)으로 강한 추세가 진행 중임을 의미합니다.")
+    sections.append("- **스토캐스틱**: 주가의 단기 과매수/과매도 상태를 보여주며, 단/중/장기 3개가 모두 같은 방향이면 신뢰도가 높습니다.")
+    sections.append("- **MACD**: 단기 이평선과 장기 이평선의 수렴/확산 정도를 나타내며, 시그널선을 뚫고 올라갈 때 매수 모멘텀이 커집니다.")
+    sections.append("- **일목구름대**: 주가의 두꺼운 지지선 또는 저항선 역할을 합니다. 주가가 구름대 위에 있으면 안정적인 상승 추세로 해석합니다.")
     
     return "\n".join(sections)
